@@ -83,8 +83,21 @@ const engineers = [...eng.values()].map(e => {
   const deliveryRaw = e.prs.reduce((s, p) => s + p.delivery, 0);
   const sortedPRs = [...e.prs].sort((a, b) => b.delivery - a.delivery);
   const first6 = e.weekly.slice(0, 6).reduce((a, b) => a + b, 0), last6 = e.weekly.slice(7).reduce((a, b) => a + b, 0);
+  // One-line, plain-language rationale per component for the always-visible card.
+  const share = (arr, f) => { const m = new Map(); arr.forEach(x => m.set(f(x), (m.get(f(x)) || 0) + 1)); const [k, n] = [...m].sort((a, b) => b[1] - a[1])[0] || ['', 0]; return { k, pctOf: arr.length ? Math.round(100 * n / arr.length) : 0 }; };
+  const tierShort = (t) => t.startsWith('T1') ? 'core (migrations/HogQL)' : t.startsWith('T2') ? 'backend & data path' : t.startsWith('T3') ? 'product & frontend' : 'docs/config';
+  const typeLabel = (t) => ({ fix: 'fixes', feat: 'features', perf: 'perf fixes', refactor: 'refactors', chore: 'chores', docs: 'docs', test: 'tests', untyped: 'untyped PRs' })[t] || t;
+  const dType = share(e.prs, p => p.type), dTier = share(e.prs.filter(p => p.d), p => tierShort(p.tier.name));
+  const drove = e.reviews.filter(r => r.drove).length, avgInline = e.reviews.length ? e.reviews.reduce((s, r) => s + r.inline, 0) / e.reviews.length : 0;
+  const hrs = e.unblocks.map(u => u.hours), medH = quantile(hrs, 0.5), fast = hrs.filter(h => h <= 24).length;
+  const summary = {
+    delivery: e.prs.length ? `${e.prs.length} PRs, ${dType.pctOf}% ${typeLabel(dType.k)}${dTier.k ? `, ${dTier.pctOf}% in ${dTier.k}` : ''}` : 'no merged PRs',
+    review: e.reviews.length ? `${e.reviews.length} substantive reviews, ${avgInline.toFixed(1)} inline comments avg, ${Math.round(100 * drove / e.reviews.length)}% before code changed` : 'no substantive reviews',
+    unblocking: e.unblocks.length ? `median ${medH.toFixed(0)}h to first real review, ${Math.round(100 * fast / e.unblocks.length)}% within a day` : 'no first reviews given',
+    ownership: areas.length ? (depth >= (breadth >= 3 ? 0.5 : 0) && areas[0].prs >= 3 ? `${(depth * 100).toFixed(0)}% of ${areas[0].area}${areas[0].top ? ' (top author)' : ''}${breadth > 1 ? `, ${breadth} areas` : ''}` : `${breadth} areas with 3+ substantive PRs`) : 'no area with 3+ substantive PRs',
+  };
   return {
-    login: e.login, assoc: e.assoc, url: `https://github.com/${e.login}`,
+    login: e.login, assoc: e.assoc, url: `https://github.com/${e.login}`, summary,
     raw: { delivery: deliveryRaw, review: e.reviews.reduce((s, r) => s + r.points, 0), unblocking: e.unblocks.reduce((s, u) => s + u.points, 0) + 0.5 * Math.min(e.comments, 20), depth, breadth, expertAreas: expertAreas.length },
     counts: { prs: e.prs.length, detailedPRs: e.prs.filter(p => p.d).length, reviews: e.reviews.length, unblocks: e.unblocks.length, comments: e.comments, medianPR: +quantile(e.prs.map(p => p.delivery), 0.5).toFixed(1) },
     context: { weeksActive: e.weekly.filter(w => w > 0).length, largestPRShare: deliveryRaw ? sortedPRs[0].delivery / deliveryRaw : 0, trend: first6 ? last6 / first6 : null, weekly: e.weekly.map(w => Math.round(w * 10) / 10) },

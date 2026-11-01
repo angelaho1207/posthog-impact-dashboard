@@ -25,7 +25,9 @@ h1{font-size:20px;margin:0}h2{font-size:12px;margin:0 0 6px;text-transform:upper
 .legend{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--muted)}.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:middle}
 .why{font-size:12px;margin:0;padding:0;list-style:none}.why li{margin:3px 0;padding-left:8px;border-left:2px solid var(--line)}.why b{font-weight:600}
 .why .d{border-color:var(--c-delivery)}.why .r{border-color:var(--c-review)}.why .u{border-color:var(--c-unblocking)}.why .o{border-color:var(--c-ownership)}
-.why summary{list-style:none;cursor:pointer}.why summary::-webkit-details-marker{display:none}.why .ev{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evd{margin-top:2px}.evd summary{cursor:pointer;font-size:12px;color:var(--accent);padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}.evd[open] summary{margin-bottom:4px}
+.evg{font-size:12px;margin:4px 0;padding-left:8px;border-left:2px solid var(--line)}.evg.d{border-color:var(--c-delivery)}.evg.r{border-color:var(--c-review)}.evg.u{border-color:var(--c-unblocking)}.evg.o{border-color:var(--c-ownership)}
 .meta{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:6px;align-items:center}
 .row{display:grid;grid-template-columns:330px 1fr;gap:12px;align-items:start}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
@@ -49,7 +51,7 @@ details.m{margin-top:10px}details.m summary{cursor:pointer;color:var(--muted);fo
   <h1>PostHog's most impactful engineers</h1>
   <span class="sub" id="window"></span>
   <span class="sub" id="coverage"></span>
-  <p class="def"><b>Impact</b> = critical work shipped + making other engineers faster. Score blends four percentile ranks (0–100, relative to ranked engineers). Click <b>why</b> on any line for the linked PRs and multipliers.</p>
+  <p class="def"><b>Impact</b> = critical work shipped + making other engineers faster. Score blends four percentile ranks (0–100, relative to ranked engineers). Each card's <b>Evidence</b> dropdown links the PRs, reviews and multipliers behind every number.</p>
 </header>
 
 <h2>Top 5</h2>
@@ -98,10 +100,9 @@ function rank(w){ const tot = COMPS.reduce((s,k)=>s+w[k],0)||1;
 function spark(weekly){ const max=Math.max(...weekly,1), w=90,h=20; const pts=weekly.map((v,i)=>`${(i/(weekly.length-1))*w},${h-(v/max)*h}`).join(' ');
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><title>weekly delivery, 13 weeks</title><polyline fill="none" stroke="var(--c-delivery)" stroke-width="1.5" points="${pts}"/></svg>`; }
 function trendTxt(t){ if(t==null) return '<span class="sub">–</span>'; const c=t>1.15?'trend-up':t<0.85?'trend-down':''; return `<span class="${c}" title="last 6 weeks ÷ first 6">${t>1.15?'▲':t<0.85?'▼':'▬'}${t.toFixed(1)}×</span>`; }
-function evidenceLine(k,e){ const ev=e.evidence[k]||[]; const top=ev[0];
-  const item = x => x ? (x.url?`<a href="${x.url}" target="_blank" rel="noopener">#${x.n}</a> ${esc(x.title)}`:`<b>${esc(x.title)}</b>`) : '<span class="sub">no evidence captured</span>';
-  const more = ev.map(x=>`<div class="sub" style="margin:2px 0"><div class="ev" title="${esc(x.title)}">${item(x)}</div><div style="font-size:11px">${esc(x.reason)}</div></div>`).join('');
-  return `<li class="${CLS[k]}"><details><summary><b>${LABEL[k]}</b> <span class="sub">${e.pct[k].toFixed(0)}</span><span class="sub" style="float:right">why ▾</span><div class="ev" title="${top?esc(top.title):''}">${item(top)}</div></summary>${more}</details></li>`; }
+function rationaleLine(k,e){ return `<li class="${CLS[k]}"><b>${LABEL[k]}</b> <span class="sub">${e.pct[k].toFixed(0)}</span><div class="sub" style="font-size:11px">${esc(e.summary[k])}</div></li>`; }
+function evidenceBlock(e){ const item = x => x.url?`<a href="${x.url}" target="_blank" rel="noopener">#${x.n}</a> ${esc(x.title)}`:`<b>${esc(x.title)}</b>`;
+  return `<details class="evd"><summary>Evidence: top PRs, reviews, areas ▾</summary>${COMPS.map(k=>{ const ev=e.evidence[k]||[]; return `<div class="evg ${CLS[k]}"><b>${LABEL[k]}</b>${ev.length?ev.map(x=>`<div class="sub" style="margin:2px 0"><div class="ev" title="${esc(x.title)}">${item(x)}</div><div style="font-size:11px">${esc(x.reason)}</div></div>`).join(''):'<div class="sub">none captured</div>'}</div>`; }).join('')}</details>`; }
 
 function renderCards(ranked){ document.getElementById('cards').innerHTML = ranked.slice(0,5).map((e,i)=>`
   <div class="card">
@@ -110,7 +111,8 @@ function renderCards(ranked){ document.getElementById('cards').innerHTML = ranke
     <div class="bar" title="${COMPS.map((k,j)=>`${LABEL[k]}: pct ${e.pct[k].toFixed(0)} × weight ${weights[k]} = ${e.parts[j].toFixed(1)}`).join('\n')}">${COMPS.map((k,j)=>`<span style="width:${e.parts[j]}%;background:var(--c-${k})"></span>`).join('')}</div>
     <div class="legend">${COMPS.map((k,j)=>`<span><i style="background:var(--c-${k})"></i>${e.parts[j].toFixed(0)}</span>`).join('')}</div>
     <div class="meta"><span>${e.counts.prs} PRs · ${e.counts.reviews} reviews · ${e.context.weeksActive}/13 wks · ${trendTxt(e.context.trend)}</span>${spark(e.context.weekly)}</div>
-    <ul class="why">${COMPS.map(k=>evidenceLine(k,e)).join('')}</ul>
+    <ul class="why">${COMPS.map(k=>rationaleLine(k,e)).join('')}</ul>
+    ${evidenceBlock(e)}
   </div>`).join(''); }
 
 function renderChart(ranked){ const top=ranked.slice(0,5), W=300, rowH=14, gap=6, labelW=78, H=top.length*(COMPS.length*rowH+gap);
