@@ -98,7 +98,7 @@ function trendTxt(t){ if(t==null) return '<span class="sub">n/a</span>'; const c
 function evidenceLine(k,e){ const ev=e.evidence[k]; if(!ev||!ev.length) return `<li class="${CLS[k]}"><b>${LABEL[k]}</b> <span class="sub">pct ${e.pct[k].toFixed(0)} · no evidence captured</span></li>`;
   const top=ev[0]; const link = top.url?`<a href="${top.url}" target="_blank" rel="noopener">#${top.n}</a> ${esc(top.title).slice(0,70)}`:`<b>${esc(top.title)}</b>`;
   const more = ev.slice(1).map(x=>`<div class="sub">${x.url?`<a href="${x.url}" target="_blank" rel="noopener">#${x.n}</a> `:''}${esc(x.title).slice(0,60)} <span title="${esc(x.reason)}">(${x.points!=null?x.points:''})</span></div>`).join('');
-  return `<li class="${CLS[k]}"><b>${LABEL[k]}</b> <span class="sub">pct ${e.pct[k].toFixed(0)}</span><div title="${esc(top.reason)}">${link}</div><div class="sub" style="font-size:11px">${esc(top.reason)}</div><details style="margin:0"><summary style="font-size:11px">more evidence</summary>${more||'<div class="sub">none</div>'}</details></li>`; }
+  return `<li class="${CLS[k]}"><details style="margin:0"><summary style="font-size:12px;color:inherit;list-style:none"><b>${LABEL[k]}</b> <span class="sub">pct ${e.pct[k].toFixed(0)}</span> <span class="sub" style="float:right">why ▾</span><div title="${esc(top.reason)}">${link}</div></summary><div class="sub" style="font-size:11px;margin:2px 0">${esc(top.reason)}</div>${more||'<div class="sub">no further evidence</div>'}</details></li>`; }
 
 function renderCards(ranked){ document.getElementById('cards').innerHTML = ranked.slice(0,5).map((e,i)=>`
   <div class="card">
