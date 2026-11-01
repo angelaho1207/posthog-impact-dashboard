@@ -52,6 +52,13 @@ details.m{margin-top:10px}details.m summary{cursor:pointer;color:var(--muted);fo
   <span class="sub" id="window"></span>
   <span class="sub" id="coverage"></span>
   <p class="def"><b>Impact</b> = critical work shipped + making other engineers faster. Score blends four percentile ranks (0–100, relative to ranked engineers). Each card's <b>Evidence</b> dropdown links the PRs, reviews and multipliers behind every number.</p>
+  <ul class="sub" style="flex-basis:100%;margin:2px 0 0;padding-left:18px;font-size:12px;columns:2;column-gap:24px">
+    <li><b>Top 5</b> (below): score, component mix, one-line rationale per component, Evidence dropdown.</li>
+    <li><b>Weights</b> (bottom left): sliders to re-rank live and test robustness.</li>
+    <li><b>Top 5 by component</b> (bottom left): percentile bar chart with short definitions.</li>
+    <li><b>All ranked engineers</b> (bottom right): sortable table, hover headers for definitions.</li>
+    <li><b>Methodology</b> (page end): every rule, regex, exclusion and coverage count.</li>
+  </ul>
 </header>
 
 <h2>Top 5</h2>
