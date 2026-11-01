@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PostHog Impact Dashboard</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1a1d23;--muted:#5f6672;--line:#e3e6ea;--accent:#1d4ed8;
+ --c-delivery:#2563eb;--c-review:#059669;--c-unblocking:#d97706;--c-ownership:#7c3aed;--pos:#059669;--neg:#dc2626}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#171a21;--ink:#e8eaee;--muted:#9aa3b2;--line:#2a2f3a;--accent:#60a5fa;
+ --c-delivery:#60a5fa;--c-review:#34d399;--c-unblocking:#fbbf24;--c-ownership:#a78bfa;--pos:#34d399;--neg:#f87171}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:0 16px 24px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+header{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:baseline;padding:14px 0 8px}
+h1{font-size:20px;margin:0}h2{font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.sub{color:var(--muted)}.def{flex-basis:100%;margin:0;max-width:1100px}
+.cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:8px 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.card .top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.rank{font-size:11px;color:var(--muted)}.name{font-weight:650;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.score{font-size:30px;font-weight:700;line-height:1;letter-spacing:-.02em}.score small{font-size:11px;font-weight:400;color:var(--muted);margin-left:4px}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)}.bar span{display:block;height:100%}
+.legend{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--muted)}.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:middle}
+.why{font-size:12px;margin:0;padding:0;list-style:none}.why li{margin:3px 0;padding-left:10px;border-left:2px solid var(--line)}.why b{font-weight:600}
+.why .d{border-color:var(--c-delivery)}.why .r{border-color:var(--c-review)}.why .u{border-color:var(--c-unblocking)}.why .o{border-color:var(--c-ownership)}
+.meta{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:6px;align-items:center}
+.row{display:grid;grid-template-columns:320px 1fr;gap:12px;align-items:start}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.sliders label{display:grid;grid-template-columns:86px 1fr 34px;gap:8px;align-items:center;font-size:12px;margin:5px 0}
+input[type=range]{width:100%;accent-color:var(--accent)}
+button{font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:nth-child(2),td:nth-child(2){text-align:left}th{color:var(--muted);font-weight:500;position:sticky;top:0;background:var(--card);cursor:pointer}
+.tbl{max-height:250px;overflow:auto}tr.top5 td{font-weight:600}
+.pct{display:inline-block;min-width:26px}.tip{border-bottom:1px dotted var(--muted);cursor:help}
+details{margin-top:12px}summary{cursor:pointer;color:var(--muted);font-size:12px}
+.method{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;font-size:12px;margin-top:8px}.method code{font-size:11px;word-break:break-all;color:var(--muted)}
+.trend-up{color:var(--pos)}.trend-down{color:var(--neg)}
+@media (max-width:1100px){.cards{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr}}
+@media (max-width:600px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Who are PostHog's most impactful engineers?</h1>
+  <span class="sub" id="window"></span>
+  <span class="sub" id="coverage"></span>
+  <p class="def"><b>Impact</b> = quality-weighted work shipped in critical parts of the system + how much an engineer makes others' work better and faster. Score is a weighted blend of four percentile ranks (0 = lowest engineer, 100 = highest), so every number below is "better than X% of ranked engineers". Hover any column header for its definition. Adjust the weights to test whether the top 5 is robust.</p>
+</header>
+
+<section>
+  <div class="cards" id="cards"></div>
+</section>
+
+<div class="row">
+  <div class="panel sliders">
+    <h2>Weights <span class="sub" style="text-transform:none;letter-spacing:0">(re-ranks live)</span></h2>
+    <div id="sliders"></div>
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:center"><button id="reset">Reset to defaults</button><span class="sub" id="stability"></span></div>
+    <h2 style="margin-top:12px">How to read a component</h2>
+    <ul class="why" style="font-size:11px">
+      <li class="d"><b>Delivery</b>: each merged PR = tier of the most critical file touched (T1 ×3 … T4 ×0.5) × title type (fix/perf ×1.3, feat ×1.2, refactor ×0.8, chore ×0.5, docs ×0.3) × difficulty keywords (×0.6–1.5) × log(real lines, generated files excluded, capped at p95). Summed over 90 days. <i>Why:</i> rewards hard work in risky code, not volume.</li>
+      <li class="r"><b>Review substance</b>: human, non-stamp reviews only (stamp = no inline comments and &lt;80 chars). Points = (1 + 0.5/inline comment + long body + changes requested + review keywords) × reviewed PR's tier × 1.5 if it landed before the PR's last commit. <i>Why:</i> measures reviews that changed the code, not rubber stamps.</li>
+      <li class="u"><b>Unblocking</b>: per PR, the reviewer's first substantive review: ≤4h ×1.5, ≤24h ×1.2, ≤72h ×1.0, slower ×0.7, scaled up to +30% by the helped engineer's delivery percentile. Plus substantive comments on others' PRs. <i>Why:</i> fast, useful feedback keeps the team moving.</li>
+      <li class="o"><b>Ownership &amp; reach</b>: max(depth, breadth) percentile. Depth = share of an area's substantive PRs (areas with ≥10). Breadth = number of areas with ≥3 substantive PRs. +5 per area where the engineer is top author <em>and</em> reviews others' PRs there. <i>Why:</i> rewards owning a system or meaningfully spanning several, not scattered small edits.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h2>All ranked engineers <span class="sub" style="text-transform:none;letter-spacing:0">(click a header to sort; ≥3 PRs or ≥3 substantive reviews to be ranked)</span></h2>
+    <div class="tbl"><table id="table"><thead><tr>
+      <th>#</th><th>Engineer</th><th><span class="tip" title="Weighted blend of the four percentiles">Score</span></th>
+      <th><span class="tip" title="Delivery percentile">Deliv</span></th><th><span class="tip" title="Review substance percentile">Review</span></th><th><span class="tip" title="Unblocking percentile">Unblock</span></th><th><span class="tip" title="Ownership & reach percentile">Own</span></th>
+      <th><span class="tip" title="Merged PRs authored (bots, self-driving, dependency PRs excluded)">PRs</span></th><th><span class="tip" title="Substantive reviews given">Revs</span></th><th><span class="tip" title="Median delivery weight of this engineer's PRs: typical PR difficulty">Med PR</span></th>
+      <th><span class="tip" title="Weeks with a merged PR, of 13">Wks</span></th><th><span class="tip" title="Share of delivery points from the single largest PR">Top PR%</span></th><th><span class="tip" title="Delivery in last 6 weeks ÷ first 6 weeks">Trend</span></th>
+    </tr></thead><tbody></tbody></table></div>
+  </div>
+</div>
+
+<details><summary>Methodology, data coverage, exclusions, and exact rules</summary><div class="method" id="method"></div></details>
+
+<script id="data" type="application/json">/*__DATA__*/</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const COMPS = ['delivery','review','unblocking','ownership'];
+const LABEL = {delivery:'Delivery',review:'Review substance',unblocking:'Unblocking',ownership:'Ownership & reach'};
+const CLS = {delivery:'d',review:'r',unblocking:'u',ownership:'o'};
+let weights = {...DATA.weights};
+const defaultTop5 = rank(DATA.weights).slice(0,5).map(e=>e.login);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function rank(w){ const tot = COMPS.reduce((s,k)=>s+w[k],0)||1;
+  return DATA.engineers.map(e=>({...e, score: COMPS.reduce((s,k)=>s+w[k]*e.pct[k],0)/tot, parts: COMPS.map(k=>w[k]*e.pct[k]/tot)})).sort((a,b)=>b.score-a.score); }
+
+function spark(weekly){ const max=Math.max(...weekly,1), w=90,h=22; const pts=weekly.map((v,i)=>`${(i/(weekly.length-1))*w},${h-(v/max)*h}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="weekly delivery"><polyline fill="none" stroke="var(--c-delivery)" stroke-width="1.5" points="${pts}"/></svg>`; }
+function trendTxt(t){ if(t==null) return '<span class="sub">n/a</span>'; const c=t>1.15?'trend-up':t<0.85?'trend-down':''; return `<span class="${c}">${t>1.15?'▲':t<0.85?'▼':'▬'} ${t.toFixed(2)}×</span>`; }
+function evidenceLine(k,e){ const ev=e.evidence[k]; if(!ev||!ev.length) return `<li class="${CLS[k]}"><b>${LABEL[k]}</b> <span class="sub">pct ${e.pct[k].toFixed(0)} · no evidence captured</span></li>`;
+  const top=ev[0]; const link = top.url?`<a href="${top.url}" target="_blank" rel="noopener">#${top.n}</a> ${esc(top.title).slice(0,70)}`:`<b>${esc(top.title)}</b>`;
+  const more = ev.slice(1).map(x=>`<div class="sub">${x.url?`<a href="${x.url}" target="_blank" rel="noopener">#${x.n}</a> `:''}${esc(x.title).slice(0,60)} <span title="${esc(x.reason)}">(${x.points!=null?x.points:''})</span></div>`).join('');
+  return `<li class="${CLS[k]}"><b>${LABEL[k]}</b> <span class="sub">pct ${e.pct[k].toFixed(0)}</span><div title="${esc(top.reason)}">${link}</div><div class="sub" style="font-size:11px">${esc(top.reason)}</div><details style="margin:0"><summary style="font-size:11px">more evidence</summary>${more||'<div class="sub">none</div>'}</details></li>`; }
+
+function renderCards(ranked){ document.getElementById('cards').innerHTML = ranked.slice(0,5).map((e,i)=>`
+  <div class="card">
+    <div class="top"><div><span class="rank">#${i+1}</span> <a class="name" href="${e.url}" target="_blank" rel="noopener">${esc(e.login)}</a></div><span class="badge">${e.assoc==='MEMBER'?'member':e.assoc==='CONTRIBUTOR'?'contributor':(e.assoc||'').toLowerCase()||'unknown'}</span></div>
+    <div class="score">${e.score.toFixed(1)}<small>/ 100</small></div>
+    <div class="bar" title="${COMPS.map((k,j)=>`${LABEL[k]}: ${e.parts[j].toFixed(1)} pts (pct ${e.pct[k].toFixed(0)} × weight ${weights[k]})`).join('\n')}">${COMPS.map((k,j)=>`<span style="width:${e.parts[j]}%;background:var(--c-${k})"></span>`).join('')}</div>
+    <div class="legend">${COMPS.map((k,j)=>`<span><i style="background:var(--c-${k})"></i>${LABEL[k].split(' ')[0]} ${e.parts[j].toFixed(0)}</span>`).join('')}</div>
+    <div class="meta"><span>${e.counts.prs} PRs · ${e.counts.reviews} subst. reviews · ${e.context.weeksActive}/13 wks · ${trendTxt(e.context.trend)}</span>${spark(e.context.weekly)}</div>
+    <ul class="why">${COMPS.map(k=>evidenceLine(k,e)).join('')}</ul>
+  </div>`).join(''); }
+
+let sortKey='score', sortDir=-1;
+function renderTable(ranked){ const top=new Set(ranked.slice(0,5).map(e=>e.login));
+  const rows=[...ranked].map((e,i)=>({...e,pos:i+1})).sort((a,b)=>{ const va=cell(a,sortKey), vb=cell(b,sortKey); return (typeof va==='string'?va.localeCompare(vb):(va??-1)-(vb??-1))*sortDir; });
+  document.querySelector('#table tbody').innerHTML = rows.map(e=>`<tr class="${top.has(e.login)?'top5':''}"><td>${e.pos}</td><td><a href="${e.url}" target="_blank" rel="noopener">${esc(e.login)}</a> <span class="sub">${e.assoc==='MEMBER'?'':e.assoc==='CONTRIBUTOR'?'(contrib)':''}</span></td><td>${e.score.toFixed(1)}</td>
+   ${COMPS.map(k=>`<td><span class="pct" style="color:var(--c-${k})">${e.pct[k].toFixed(0)}</span></td>`).join('')}<td>${e.counts.prs}</td><td>${e.counts.reviews}</td><td>${e.counts.medianPR}</td><td>${e.context.weeksActive}</td><td>${(e.context.largestPRShare*100).toFixed(0)}%</td><td>${trendTxt(e.context.trend)}</td></tr>`).join(''); }
+const KEYS=['pos','login','score','delivery','review','unblocking','ownership','prs','reviews','medianPR','weeksActive','largestPRShare','trend'];
+function cell(e,k){ if(k in e) return e[k]; if(COMPS.includes(k)) return e.pct[k]; if(k in e.counts) return e.counts[k]; return e.context[k]; }
+document.querySelectorAll('#table th').forEach((th,i)=>th.addEventListener('click',()=>{ const k=KEYS[i]; sortDir = sortKey===k ? -sortDir : (k==='login'||k==='pos'?1:-1); sortKey=k; render(); }));
+
+function renderSliders(){ document.getElementById('sliders').innerHTML = COMPS.map(k=>`<label><span style="color:var(--c-${k})">${LABEL[k]}</span><input type="range" min="0" max="60" value="${weights[k]}" data-k="${k}"><span id="w-${k}">${weights[k]}</span></label>`).join('');
+  document.querySelectorAll('#sliders input').forEach(inp=>inp.addEventListener('input',()=>{ weights[inp.dataset.k]=+inp.value; document.getElementById('w-'+inp.dataset.k).textContent=inp.value; render(); })); }
+document.getElementById('reset').addEventListener('click',()=>{ weights={...DATA.weights}; renderSliders(); render(); });
+
+function render(){ const ranked=rank(weights); renderCards(ranked); renderTable(ranked);
+  const now=ranked.slice(0,5).map(e=>e.login); const kept=now.filter(l=>defaultTop5.includes(l)).length;
+  document.getElementById('stability').textContent = JSON.stringify(weights)===JSON.stringify(DATA.weights) ? 'Default weights' : `${kept}/5 of the default top 5 remain`; }
+
+const c=DATA.coverage;
+document.getElementById('window').textContent = `${DATA.window.start} → ${DATA.window.end} (${DATA.window.days} days)`;
+document.getElementById('coverage').textContent = `${c.mergedPRs.toLocaleString()} merged PRs · ${c.humanPRs.toLocaleString()} human-authored (${c.excludedPRs.toLocaleString()} bot / self-driving / dependency PRs excluded) · ${c.detailedPRs.toLocaleString()} with file & review detail · ${c.reviewsCounted.toLocaleString()} substantive reviews · ${c.engineersRanked} engineers ranked`;
+const m=DATA.methodology;
+document.getElementById('method').innerHTML = `
+ <div><b>Formula</b><br>score = Σ weight<sub>k</sub> × percentile<sub>k</sub> / Σ weight. Each component's raw total is winsorized at the 95th percentile across engineers, then percentile-ranked (0–100). Defaults: ${COMPS.map(k=>`${LABEL[k]} ${DATA.weights[k]}`).join(', ')}.</div>
+ <div><b>Data</b><br>GitHub GraphQL, PRs merged ${DATA.window.start}–${DATA.window.end}. Metadata for all ${c.mergedPRs.toLocaleString()} merged PRs; files, reviews, comments and body for ${c.detailedPRs.toLocaleString()} human PRs fetched in importance order (fix/perf/feat first, then refactor, then other, newest first). PRs without file detail use metadata lines ×0.7 and tier T3. Generated at ${DATA.generatedAt.slice(0,16).replace('T',' ')} UTC. Size cap p95 = ${c.p95Lines} real lines; median PR weight ${c.medianPRWeight}.</div>
+ <div><b>Path tiers</b> (most critical file wins)<br>${m.tiers.map(t=>`${t.name} ×${t.w}: <code>${esc(t.re)}</code>`).join('<br>')}</div>
+ <div><b>Title types</b><br>${Object.entries(m.titleTypes).map(([k,v])=>`${k} ×${v}`).join(', ')}; untyped ×1.0; revert = fixed 1.0.</div>
+ <div><b>Difficulty keywords</b> (title + first 1500 chars of body; +15% each up to 3, −10% each up to 3)<br>High: <code>${esc(m.kwHigh)}</code><br>Low: <code>${esc(m.kwLow)}</code></div>
+ <div><b>Review keywords</b> (+0.3 / −0.2 each)<br>High: <code>${esc(m.reviewKwHigh)}</code><br>Low: <code>${esc(m.reviewKwLow)}</code></div>
+ <div><b>Excluded</b><br>Authors: ${m.botLogins.join(', ')} and any <code>[bot]</code>. Labels: ${m.excludedLabels.join(', ')}. Stamp reviews: bot author, or no inline comments and &lt; ${m.stampMinChars} chars (unless changes requested). Generated files: <code>${esc(m.generated)}</code></div>
+ <div><b>Unblocking speed</b><br>${m.unblockSpeed.map(s=>`${s.withinHours?'≤'+s.withinHours+'h':'slower'} ×${s.factor}`).join(', ')}; × (1 + ${m.unblockPropagation} × helped engineer's delivery percentile). Comments on others' PRs ≥ ${m.stampMinChars} chars: +0.5 each, max 20.</div>
+ <div><b>Agent-authored work</b><br>Fully autonomous PRs (label self-driving) are excluded. Agent-assisted PRs under a human account count at full weight and are judged by the same tier/type/keyword rules, so agent busywork (moves, bumps, chores) scores low and agent-executed critical work scores high.</div>
+ <div><b>Known limits</b><br>Percentiles compare engineers against each other, not an absolute bar. Reviews limited to the first 25 per PR, files to the first 60. Contributors and members are ranked together; badge shows which. Trend and consistency are context only, never scored.</div>`;
+renderSliders(); render();
+</script>
+</body>
+</html>

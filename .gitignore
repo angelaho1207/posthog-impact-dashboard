@@ -1,0 +1,6 @@
+data/*.jsonl
+data/*.out
+data/*.log
+data/days_done.txt
+node_modules
+site/
