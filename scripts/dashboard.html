@@ -102,7 +102,7 @@ function evidenceLine(k,e){ const ev=e.evidence[k]; if(!ev||!ev.length) return `
 
 function renderCards(ranked){ document.getElementById('cards').innerHTML = ranked.slice(0,5).map((e,i)=>`
   <div class="card">
-    <div class="top"><div><span class="rank">#${i+1}</span> <a class="name" href="${e.url}" target="_blank" rel="noopener">${esc(e.login)}</a></div><span class="badge">${e.assoc==='MEMBER'?'member':e.assoc==='CONTRIBUTOR'?'contributor':(e.assoc||'').toLowerCase()||'unknown'}</span></div>
+    <div class="top"><div><span class="rank">#${i+1}</span> <a class="name" href="${e.url}" target="_blank" rel="noopener">${esc(e.login)}</a></div><span class="badge" title="GitHub authorAssociation. 'member' means public PostHog org member; staff with private membership appear as contributor or collaborator.">${(e.assoc||'unknown').toLowerCase()}</span></div>
     <div class="score">${e.score.toFixed(1)}<small>/ 100</small></div>
     <div class="bar" title="${COMPS.map((k,j)=>`${LABEL[k]}: ${e.parts[j].toFixed(1)} pts (pct ${e.pct[k].toFixed(0)} × weight ${weights[k]})`).join('\n')}">${COMPS.map((k,j)=>`<span style="width:${e.parts[j]}%;background:var(--c-${k})"></span>`).join('')}</div>
     <div class="legend">${COMPS.map((k,j)=>`<span><i style="background:var(--c-${k})"></i>${LABEL[k].split(' ')[0]} ${e.parts[j].toFixed(0)}</span>`).join('')}</div>
